@@ -17,11 +17,11 @@ class Botcommand
   end
 
   def get_command_name()
-    @command_name
+    @command
   end
 
   def set_command_name(command_name)
-    @command_name = command_name
+    @command = command_name
   end
 
   def get_regexp()
@@ -59,10 +59,12 @@ HELLO_USER = Botcommand.new("HelloUser", /\A[!][Hh][eE][lL][lL][oO]\z/,true)
 LOCATE_LOG = Botcommand.new("LocateLog", /\A[!][Ll][Oo][Gg]\z/ ,false)
 ENABLE_LOG = Botcommand.new("LogStatus", /\A[!][Ll][Oo][Gg][_][Ss][Tt][Aa][Tt]\z/ ,false)
 LOL = Botcommand.new("L.O.L", /\A[!][Ll][Oo][Ll]\z/ ,false)
+I_AM = Botcommand.new("IAm", /\A[!][iI][aA][mM][-]([a-zA-Z]+)\z/ ,false)
 ASK_TIME = Botcommand.new("Time", /\A[!][tT][iI][mM][eE]\z/ ,false)
 USERS_LIST = Botcommand.new("UsersList",/\A[!][uU][sS][eE][rR][sS]\z/, false)
 USERS_COUNT = Botcommand.new("UsersList",/\A[!][uU][sS][eE][rR][_][cC][oO][Uu][nN][tT]\z/, false)
 COMMAND_LIST = Botcommand.new("CommandList(Help)",/(\A[!][cC][oO][mM][mM][sS]\z|\A[!][hH][eE][lL][pP]\z)/, false)
+
 
 old_user_count = 0
 new_user_count = 0
@@ -168,7 +170,6 @@ end
 # The following is for prefixing the log statements with time and log if a user leaves or is added
 on :message do |m|
   new_user_count = m.channel.users.length
-
   if ( old_user_count != new_user_count ) then
     reply_string = m.channel.to_s+" - Users: "
     m.channel.users.each do |f|
@@ -217,10 +218,26 @@ end
 
 # The following is for listing the commands
 on :message,COMMAND_LIST.get_regexp do |m|
-  reply_string = '!log_stat, !s, !log, !time, !lol, !hello, !users, !user_count, !comms( or !help)  Note : They are not case sensitive'
+  reply_string =  "The following commands are available with this bot :\n"+ENABLE_LOG.get_command_name.to_s+" - !log_stat\t\t"+TOGGLE_LOG.get_command_name+" - !s\t\t"+LOCATE_LOG.get_command_name+" - !log\t\t"+ASK_TIME.get_command_name+" - !time\t\t"+LOL.get_command_name+" - !lol\t\t"+HELLO_USER.get_command_name+" - !hello\t\t"
+  reply_string = reply_string+USERS_LIST.get_command_name+" - !users\t\t"+USERS_COUNT.get_command_name+" - !user_count\t\t"+COMMAND_LIST.get_command_name+" - !comms (or !help )\t\t"+I_AM.get_command_name+" - !iam-(Type your name here) (Eg. !iam-xyz)\nNote : None of the commands are case sensitive."
+  
   m.reply("#{reply_string}")
   if(logging[m.channel.to_s] && COMMAND_LIST.log? ) then
     #redis.LPUSH key , "<#{Time.now.hour}:#{Time.now.min}> "+m.user.nick+": "+(m.params[1]).to_s
+    redis.LPUSH key , "#{reply_string}"
+  end
+end
+
+# The following is for a command called I_Am
+on :message,I_AM.get_regexp do |m|
+  name =  m.message.to_s
+  if ( m.channel.users.length > 2 ) then
+    reply_string = "Everyone listen up - #{m.user.nick} is  #{name[5..-1]} ! Let\'s welcome him !!"
+  else
+    reply_string = "Hi  #{name[5..-1]}, nice to meet you !!"
+  end
+  m.reply(reply_string)
+  if( logging[m.channel.to_s] && I_AM.log? ) then
     redis.LPUSH key , "#{reply_string}"
   end
 end
