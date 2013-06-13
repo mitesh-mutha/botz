@@ -35,19 +35,23 @@ class Botcommand
 end
 
 # Key variable
-type = 3
-key="#{Time.now.month}-#{Time.now.year}-#{Time.now.day}-#{type}"
+  #type = 3
+  #key="#{Time.now.month}-#{Time.now.year}-#{Time.now.day}-#{type}"
+key = ARGV[0]
 
 # Name of the bot
 bot_name = "BOT_MTSH"
 
-# Location of log and logging variable should be initially false
-logging = false
-LOG_LOCATION = "http://localhost:4567"
-
 #Server and channel details
 SERVER_ADDRESS = "irc.freenode.org"
-CHANNELS = ["#nitk-droid"]
+CHANNELS = ["#nitk-droid","#nitk-autobotz"]
+
+# Location of log and logging variable should be initially false
+logging = {}
+CHANNELS.each do |chan|
+  logging[chan] = false
+end
+LOG_LOCATION = "http://localhost:4567"
 
 # Following are the command objects
 TOGGLE_LOG = Botcommand.new("ToggleLog", /\A[!][sS]\z/ ,true)
@@ -73,13 +77,12 @@ bot = Cinch::Bot.new do
   
 # The following code is the handler for the command to toggle log 
 on :message,TOGGLE_LOG.get_regexp do |m|
-  logging = !logging
-  if( logging ) then 
+  logging[m.channel.to_s] = !logging[m.channel.to_s]
+  if( logging[m.channel.to_s] ) then 
     reply_string = "=========================Logging for #{m.channel} started at #{Time.now.asctime}========================================="
     m.reply(reply_string)
     if ( TOGGLE_LOG.log? ) then
       redis.LPUSH key , reply_string
-
       reply_string = m.channel.to_s+" - Users: "
       m.channel.users.each do |f|
         reply_string += f[0].to_s+" "
@@ -89,7 +92,7 @@ on :message,TOGGLE_LOG.get_regexp do |m|
       redis.LPUSH key , "#{reply_string} is #{m.channel.users.length}"
 
     end
-  elsif ( !logging ) then
+  elsif ( !logging[m.channel.to_s] ) then
     reply_string = "=========================Logging for #{m.channel} stopped at #{Time.now.asctime}========================================="
     m.reply(reply_string)
     if ( TOGGLE_LOG.log? ) then
@@ -112,7 +115,7 @@ end
 on :message, HELLO_USER.get_regexp do |m|
   reply_string = "Hello #{m.user.nick}. How are you ?! Never mind, already too bored"
   m.reply(reply_string)
-  if( logging && HELLO_USER.log? ) then
+  if( logging[m.channel.to_s] && HELLO_USER.log? ) then
     redis.LPUSH key , bot_name+": "+reply_string
   end
 end
@@ -122,20 +125,20 @@ end
 on :message,LOCATE_LOG.get_regexp do |m|
   reply_string = "#{m.user.nick}: The log can be found here - "+LOG_LOCATION
   m.reply(reply_string)
-  if( logging && LOCATE_LOG.log? ) then
+  if( logging[m.channel.to_s] && LOCATE_LOG.log? ) then
     redis.LPUSH key , bot_name+": "+reply_string
   end
 end
 
 # The following code is the handler for the command to find whether logging is enabled
 on :message,ENABLE_LOG.get_regexp do |m|
-  if ( logging ) then
+  if ( logging[m.channel.to_s] ) then
     reply_string = "#{m.user.nick}: The conversation is being logged"
   else
     reply_string = "#{m.user.nick}: The conversation is not being logged"
   end
   m.reply(reply_string)
-  if( logging && ENABLE_LOG.log? ) then
+  if( logging[m.channel.to_s] && ENABLE_LOG.log? ) then
     redis.LPUSH key , bot_name+": "+reply_string
   end
 end
@@ -147,7 +150,7 @@ on :message,LOL.get_regexp do |m|
   m.reply(reply_string)
   #puts m.channel
   #puts "--------------------"
-  if( logging && LOL.log? ) then
+  if( logging[m.channel.to_s] && LOL.log? ) then
     redis.LPUSH key , bot_name+": "+reply_string
   end
 end
@@ -157,7 +160,7 @@ end
 on :message,ASK_TIME.get_regexp do |m|
   reply_string = "#{m.user.nick}: The Time is #{Time.now.asctime}"
   m.reply(reply_string)
-  if(logging && ASK_TIME.log? ) then
+  if(logging[m.channel.to_s] && ASK_TIME.log? ) then
     redis.LPUSH key , bot_name+": "+reply_string
   end
 end
@@ -171,17 +174,17 @@ on :message do |m|
     m.channel.users.each do |f|
       reply_string += f[0].to_s+" "
     end
-    if ( logging ) then
+    if ( logging[m.channel.to_s] ) then
       redis.LPUSH key , "#{reply_string}"
     end
     reply_string = m.channel.to_s+" - Number of users"
-    if ( logging ) then
+    if ( logging[m.channel.to_s] ) then
       redis.LPUSH key , "#{reply_string} is #{m.channel.users.length}"
     end
     old_user_count = new_user_count
   end
 
-  if(logging) then
+  if(logging[m.channel.to_s]) then
   logPrefixString = "%s - <%02d:%02d> " % [m.channel,Time.now.hour, Time.now.min]
   #redis.LPUSH key , "<#{Time.now.hour}:#{Time.now.min}> "+m.user.nick+": "+(m.params[1]).to_s
   redis.LPUSH key , logPrefixString+m.user.nick+" : "+(m.params[1]).to_s
@@ -206,7 +209,7 @@ end
 on :message,USERS_COUNT.get_regexp do |m|
   reply_string = "Number of users"
   m.reply("#{reply_string} is #{m.channel.users.length}")
-  if(logging && USERS_COUNT.log? ) then
+  if(logging[m.channel.to_s] && USERS_COUNT.log? ) then
     #redis.LPUSH key , "<#{Time.now.hour}:#{Time.now.min}> "+m.user.nick+": "+(m.params[1]).to_s
     redis.LPUSH key , "#{reply_string} is #{m.channel.users.length}"
   end
@@ -216,7 +219,7 @@ end
 on :message,COMMAND_LIST.get_regexp do |m|
   reply_string = '!log_stat, !s, !log, !time, !lol, !hello, !users, !user_count, !comms( or !help)  Note : They are not case sensitive'
   m.reply("#{reply_string}")
-  if(logging && COMMAND_LIST.log? ) then
+  if(logging[m.channel.to_s] && COMMAND_LIST.log? ) then
     #redis.LPUSH key , "<#{Time.now.hour}:#{Time.now.min}> "+m.user.nick+": "+(m.params[1]).to_s
     redis.LPUSH key , "#{reply_string}"
   end
